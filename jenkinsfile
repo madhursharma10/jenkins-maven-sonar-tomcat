@@ -1,17 +1,54 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'MAVEN'
+        jdk 'JDK21'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
     stages {
+
         stage('Git Checkout') {
             steps {
                 git branch: 'main',
-                url: 'https://github.com/madhursharma10/jenkins-maven-sonar-tomcat.git'
+                    url: 'https://github.com/madhursharma10/jenkins-maven-sonar-tomcat.git'
             }
         }
 
         stage('Maven Build') {
             steps {
                 sh 'mvn clean package'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                    $SCANNER_HOME/bin/sonar-scanner \
+                    -Dsonar.projectKey=demo-app \
+                    -Dsonar.sources=. \
+                    -Dsonar.java.binaries=target/classes
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                deploy adapters: [
+                    tomcat9(
+                        credentialsId: 'tomcat',
+                        path: '',
+                        url: 'http://localhost:8081'
+                    )
+                ],
+                contextPath: 'demo-app',
+                war: 'target/*.war'
             }
         }
     }
